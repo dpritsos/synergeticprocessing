@@ -3,25 +3,75 @@
     Author: Dimitrios Pritsos
     Last update: 12 / Dec / 2010"""
 
-from threading import Thread, Event
-from multiprocessing import Process, Manager 
-import Queue
+import types
+import copy_reg
+#from threading import Thread, Event
+from multiprocessing import Process, Queue, joinableQueue
+from multiprocessing.connection import Client, Listener
+from Queue import Empty
+from synergetic import _reduce_method, _reduce_method_descriptor
 
-class SynergeticPool(object):
+
+class SynergeticPool(Process):
     """Synergetic Process Pool: """
     
-    def __init__(self, threads_num):
-        self.__threads_l = list()
+    def __init__(self, synergetic_servers=None):
+        #Enable Class Method Pickling  
+        copy_reg.pickle(types.MethodType, _reduce_method)
+        #Enable Descriptor Method Pickling
+        copy_reg.pickle(types.MemberDescriptorType, _reduce_method_descriptor)
+        #Keep the synergetic servers' IP Addresses or Names  
+        self.__syn_servs = synergetic_servers
+        #Synergetic Process available
+        self.__syn_prcs = dict()
+        #Start the Listener that is expecting new-coming synergetic-servers of synergetic-processes
+        self.__start_synergetic_listener()
+        #Start the Synergetic-Pool's functionality
+        self.__start_pool 
+        
+    def __start_pool(self, local_worker_num=1):
+        #Initialise the Queues
+        syn_servs_num = len(self.__syn_servs)
+        self.task_queue = JoinableQueue( syn_servs_num + local_worker_num )
+        self.return_queue = Queue( syn_servs_num + local_worker_num )
+        #Resize the Queues depending on Synergetic-Processes availability their state
+        self.resize_pool(self, local_worker_num, self._syn_servs)
+    
+    def __start_synergetic_listener(self):
+        listener = Process( target=self.__synergetic_serv_listener )
+        listener.daemon = True
+        listener.start()
+    
+    def __synegetic_serv_listener(self):
+        serv = Listener(('', 41000), authkey='123456')
+        while True:
+            conn = serv.accept()
+            try:
+                server, port, authkey = conn.recv()
+            except EOFError:
+                recptn_failed = True
+            if recptn_failed is False:
+                conn.send('WELLCOME')
+                conn.close()
                 
-
-    def __start_pool(self, threads_num):
-        """Set the pool size and start all threads"""
-        #Initialise the Threads
-        for i in range(threads_num):
-            self.__threads_l.append( WorkerProcess(self.__tasks_q, self.__joinall) )
-        #Start the threads
-        for t in self.__threads_l:
-            t.start()
+       def resize_pool(self, local_worker_num=1, syn_servs):
+           if len(self.__syn_prcs_avail) < local_worker_num:
+              self.__syn_prcs_avail 
+                
+           
+           for i in local_worker_num:
+            
+            
+            
+            
+            
+            
+        
+    
+            
+ 
+            
+    def __remote_dispatch(self, ):
 
     def dispatch(self, *args):
         #This IF statement is only for self.map() function  

@@ -1,18 +1,35 @@
 
 """  """
 
-#import multiprocessing.forking import _reduce_method, _reduce_method_descriptor 
+import types
+import copy_reg
 
-def _reduce_method(m):
-    if m.im_self is None:
-        return getattr, (m.im_class, m.im_func.func_name)
-    else:
-        return getattr, (m.im_self, m.im_func.func_name)
+from multiprocessing import Pool
 
+def _pickle_method(method):
+    if not registry[ method.im_func.__name__ ]:
+        pass
+    func_name = method.im_func.__name__
+    obj = method.im_self #Use this only for Classes not including multiprocessing.Pool definition
+    cls = method.im_class
+    return _unpickle_method, (func_name, obj, cls)
 
-def _reduce_method_descriptor(m):
-    return getattr, (m.__objclass__, m.__name__)
-
+def _unpickle_method(func_name, obj, cls):
+    print 'pass 6'
+    for cls in cls.__mro__:
+        try:
+            func = cls.__dict__[func_name]
+        except KeyError:
+            try:
+                func = cls.__dict__[ '_' + cls.__name__ + func_name ]
+            except KeyError:
+                pass
+            else:
+                break
+        else:
+            break
+    #print obj
+    return func.__get__(obj, cls)
 
 registry = {}
 
@@ -27,17 +44,12 @@ class SynergeticMeta(type):
        
 class Synergetic:
     __metaclass__ = SynergeticMeta
+    
 
-        
-#Unit Test        
 if __name__ == "__main__":
-    
-    import types
-    import copy_reg
-    copy_reg.pickle(types.MethodType, _reduce_method)
-    copy_reg.pickle(types.MemberDescriptorType, _reduce_method_descriptor)
+
     #copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
-    
+
     class Test(Synergetic): 
         
         def __init__(self):
@@ -50,8 +62,7 @@ if __name__ == "__main__":
         def printone(self, i):
             print 'print one'
             print i
-    
-    from multiprocessing import Pool
+
     p = Pool(2)
     a = Test()
     lista  = [1, 2, 3, 4]
