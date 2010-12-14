@@ -2,6 +2,7 @@
 """  """
 
 #import multiprocessing.forking import _reduce_method, _reduce_method_descriptor 
+import types
 
 def _reduce_method(m):
     if m.im_self is None:

@@ -34,14 +34,14 @@ class SynergeticProcess(Process):
         
     def run(self): 
         while True:
-            print "Worker Process Works"
+            print "Synergetic Process Works"
             #default value in case
             task_id, func, args, kwargs = self.__tasks_q.get()
             #assert func, "Error: <None> function was given for execution"
             if not func:
                 return
-            if callable(func):
-                raise Exception("synergeticprocessing.WorkerProcess error: Non-callable was given as function for execution")
+            #if callable(func):
+            #    raise Exception("synergeticprocessing.WorkerProcess error: Non-callable was given as function for execution")
             #Execute the function with its args
             func_ret = func( *args, **kwargs )
             #It should always be an available slot in the return queue or an exeption will me raised  
