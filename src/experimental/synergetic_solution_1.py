@@ -15,7 +15,7 @@ def _pickle_method(method):
     return _unpickle_method, (func_name, obj, cls)
 
 def _unpickle_method(func_name, obj, cls):
-    print 'pass 6'
+    print 'UNPICKLE'
     for cls in cls.__mro__:
         try:
             func = cls.__dict__[func_name]
@@ -48,7 +48,7 @@ class Synergetic:
 
 if __name__ == "__main__":
 
-    #copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
+    copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
 
     class Test(Synergetic): 
         

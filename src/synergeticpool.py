@@ -9,7 +9,7 @@ import copy_reg
 from multiprocessing import Process, Queue, JoinableQueue
 from multiprocessing.connection import Client, Listener
 from Queue import Empty
-from synergetic import _reduce_method, _reduce_method_descriptor
+from synergetic import Synergetic, _reduce_method, _reduce_method_descriptor, _pickle_method, _unpickle_method
 from synergeticprocess import SynergeticProcess
 from time import sleep
 import random
@@ -18,7 +18,8 @@ class SynergeticPool(Process):
     """Synergetic Process Pool: """
     
     def __init__(self, synergetic_servers=None):
-        #Enable Class Method Pickling  
+        #Enable Class Method Pickling
+        #copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)  
         copy_reg.pickle(types.MethodType, _reduce_method)
         #Enable Descriptor Method Pickling
         copy_reg.pickle(types.MemberDescriptorType, _reduce_method_descriptor)
@@ -73,11 +74,14 @@ class SynergeticPool(Process):
     def __synergetic_feeder(self):
         while True:
             for serv_addr, conn in self.__syn_servs.items():
+                #print 'Looking for Connection'
                 if conn:
+                    print 'connetion found'
                     Task = self.__task_queue.get()
                     self.__incomp_tasks[ Task[0] ] = Task
                     try:
                         conn.send( Task )
+                        print 'TASK SENT'
                     except EOFError:
                         self.__syn_servs[ serv_addr ] = None
             for serv_addr, conn in self.__syn_servs.items():
@@ -95,7 +99,8 @@ class SynergeticPool(Process):
     def __synergetic_serv_connection(self, serv, port, auth):
         try:
             print 'Conneting'
-            conn = Client((serv, port), authjey=auth)
+            print serv, port, auth
+            conn = Client((str(serv), port), authkey=str(auth))
             print 'Conneted'
         except:
             conn = None
@@ -198,28 +203,37 @@ class ResaultIterator(object):
                 self.__return_queue.put()
         return ret
 
+import os.path
+
+class sor(object):
+    real_module = os.path.splitext(os.path.basename(__file__))[0]
+    #__module__ = os.path.splitext(os.path.basename(__file__))[0]  ### look here ###
+    def sorting(self, data):
+        print("SortTask starting for: %s" % data)
+        data.sort()
+        print("SortTask done for: %s" % data)
+        return "Data Sorted: ", data
 
 #Unit Test
 if __name__ == "__main__":
     
     print "Unit test is running\n"
-    
-    # Simple task for testing
-    def sorting(data):
-        print("SortTask starting for: %s" % data)
-        data.sort()
-        print("SortTask done for: %s" % data)
-        return "Data Sorted: ", data
+    #import sys
+    #mod = __import__(__name__)
+    #import testclass 
+    #mod = sys.modules[__name__]
+    from testclass import sor
+    srt = sor()
 
     #Simple Callback_func for testing
     def callback_func(data):
         print("Callback Function => sorting() returned: %s \n" % str( data ) )
 
     #A pool or some worker threads 
-    pool = SynergeticPool( { '192.168.1.67':('40000','123456') } )
+    pool = SynergeticPool( { '192.168.1.65':(40000,'123456') } )
 
     #Dispatch some tasks to the Thread Pool (i.e. put some entries at the task Queue of the ThreadPool instance)
-    for ret in pool.dispatch(sorting, [5, 6, 7, 1, 3, 0, 1, 1, 10]):
+    for ret in pool.dispatch(srt.sorting, [5, 6, 7, 1, 3, 0, 1, 1, 10]):
         print 'RET', ret
     #pool.dispatch(sorting, [5], callback_func)
     #pool.dispatch(sorting, [0, 0, 1, 10], callback_func)
