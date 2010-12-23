@@ -7,39 +7,13 @@ import sys
 import os.path
 
 def _reduce_method(m):
-    print 'CALLING REDUCE FUNCTION'
     if m.im_self is None:
         return getattr, (m.im_class, m.im_func.func_name)
     else:
         return getattr, (m.im_self, m.im_func.func_name)
 
-#def _reduce_method(m):
-#    print 'CALLING REDUCE FUNCTION'
-    #__import__(m.im_func.__module__)
-    #mod = sys.modules[m.im_func.__module__]
-    #klass = getattr(mod, m.im_class.__name__)
-#    if m.im_self is None:
-#        pass # return getattr, (klass, m.im_func.__name__)
-#    else:
-#        print 'reduce getattr'
-#        return _unpickle_method, (m.im_func.__name__, m.im_self, m.im_class)
-
-def _unpickle_method(func_name, obj, cls):
-    print 'CLASS NAME: ', cls
-    cls.__module__ = cls.real_module
-    method = getattr(obj, func_name)
-    return method
-
 def _reduce_method_descriptor(m):
     return getattr, (m.__objclass__, m.__name__)
-
-
-def _pickle_method(method):
-    print 'PICKLE'
-    func_name = method.im_func.__name__
-    obj = method.im_self #Use this only for Classes not including multiprocessing.Pool definition
-    cls = method.im_class
-    return _unpickle_method, (func_name, obj, cls)
 
 registry = {}
 
@@ -56,7 +30,8 @@ class SynergeticMeta(type):
        
 class Synergetic:
     __metaclass__ = SynergeticMeta
-
+    #def __reduce__(self):
+    #    return getattr, (m.im_self, m.im_func.func_name)
         
 #Unit Test        
 if __name__ == "__main__":

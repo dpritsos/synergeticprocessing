@@ -9,7 +9,7 @@ import copy_reg
 from multiprocessing import Process, Queue, JoinableQueue
 from multiprocessing.connection import Client, Listener
 from Queue import Empty
-from synergetic import Synergetic, _reduce_method, _reduce_method_descriptor, _pickle_method, _unpickle_method
+from synergetic import Synergetic, _reduce_method, _reduce_method_descriptor
 from synergeticprocess import SynergeticProcess
 from time import sleep
 import random
@@ -18,8 +18,7 @@ class SynergeticPool(Process):
     """Synergetic Process Pool: """
     
     def __init__(self, synergetic_servers=None):
-        #Enable Class Method Pickling
-        #copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)  
+        #Enable Class Method Pickling  
         copy_reg.pickle(types.MethodType, _reduce_method)
         #Enable Descriptor Method Pickling
         copy_reg.pickle(types.MemberDescriptorType, _reduce_method_descriptor)
@@ -28,13 +27,39 @@ class SynergeticPool(Process):
         #List of available Synergetic Processes 
         self.__syn_pcss = list()
         #List of incomplete tasks recored
-        self.__incomp_tasks = dict()
+        self.__incomp_tsks_set_q = Queue()
         #Start the Listener that is expecting new-coming synergetic-servers of synergetic-processes
         self.__start_synergetic_listener()
         #Start the Synergetic-Pool's functionality
         self.__start_pool(synergetic_servers, local_worker_num=1)
         #Start the Synergetic feeder that feeds the remote servers with Tasks  
         self.__start_synergetic_feeder()
+        #Start the Synergetic Receiver for getting the results of the remote processes
+        self.__start_synergetic_recver()
+        
+    def register_mod(self, mod_list):
+        self.__regstr_mods = dict()
+        for mod in mod_list:
+            try:
+                fobj = open(mod + ".pyc", 'rb')
+            except Exception as e:
+                print("Synergeticprocessing.Pool--> Module registration failed: %s" % e)
+            else:
+                mod_bytecod = fobj.read()
+            finally:
+                fobj.close()
+            self.__regstr_mods[ mod ] = mod_bytecod 
+        for serv, conn in self.__syn_servs.items():
+            if conn:
+                try: 
+                    conn.send(('MODULES', self.__regstr_mods))
+                    resp = conn.recv()
+                except Exception as e:
+                    raise Exception('Module Registration Error')
+                if resp == 'MODULES-READY':
+                    print('Modules Ready @ SynergeticServer: %s' % serv )
+                else:
+                    raise Exception('Module Registration Unexpected Error')
         
     def __start_pool(self, synergetic_servers, local_worker_num=1):
         #Initialise the Queues
@@ -45,7 +70,7 @@ class SynergeticPool(Process):
         self.__task_queue = JoinableQueue( syn_servs_num + local_worker_num )
         self.__return_queue = Queue( syn_servs_num + local_worker_num )
         #
-        #self.__start_local_pool(local_worker_num)
+        self.__start_local_pool(local_worker_num)
         #
         self.__start_serv_pool(synergetic_servers)
         
@@ -67,23 +92,27 @@ class SynergeticPool(Process):
                 conn.close()
                 
     def __start_synergetic_feeder(self):
-        listener = Process( target=self.__synergetic_feeder )
-        listener.daemon = True
-        listener.start()  
+        feeder = Process( target=self.__feed_remote_syncss )
+        feeder.daemon = True
+        feeder.start()    
     
-    def __synergetic_feeder(self):
+    def __feed_remote_syncss(self):
         while True:
             for serv_addr, conn in self.__syn_servs.items():
-                #print 'Looking for Connection'
                 if conn:
-                    print 'connetion found'
                     Task = self.__task_queue.get()
-                    self.__incomp_tasks[ Task[0] ] = Task
                     try:
                         conn.send( Task )
-                        print 'TASK SENT'
                     except EOFError:
                         self.__syn_servs[ serv_addr ] = None
+                        
+    def __start_synergetic_recver(self):
+        recver = Process( target=self.__recv_remote_syncss )
+        recver.daemon = True
+        recver.start()
+    
+    def __recv_remote_syncss(self):
+        while True:
             for serv_addr, conn in self.__syn_servs.items():
                 if conn:
                     try:
@@ -91,10 +120,7 @@ class SynergeticPool(Process):
                     except EOFError:
                         self.__syn_servs[ serv_addr ] = None
                     else:
-                        del self.__incomp_tasks[ return_msg[0] ]
                         self.__return_queue.put( return_msg )
-            for incomp_task in self.__incomp_tasks.values():
-                self.__task_queue.put( incomp_task )
     
     def __synergetic_serv_connection(self, serv, port, auth):
         try:
@@ -118,13 +144,13 @@ class SynergeticPool(Process):
             print serv, port, auth
             conn = self.__synergetic_serv_connection(serv, port, auth)
             if conn:
-                print 'POOL OPEND'
                 self.__syn_servs[ serv ] = conn
             else:
                 #Maybe this will be DEPRICATED 
                 self.__syn_servs[ serv ] = None    
 
     def __dispatch(self, func, *args, **kwargs):
+        print 'put in queue'
         task_id = str( random.randrange(1, 100000000) )
         task = (task_id, func, args, kwargs)
         self.__task_queue.put( task )
@@ -160,6 +186,7 @@ class SynergeticPool(Process):
         iter_ret = self.imap(func, iterable, chank, callback)
         for ret_item in iter_ret:
             ret.append( ret_item )
+        return ret
     
     def join_all(self, timeout=None):
         pass
@@ -190,51 +217,52 @@ class ResaultIterator(object):
     
     @property
     def value(self):
-        ret = 'None'
+        task_ret = 'None'
         while self.__tasks:
-            print 'Blocks'
             ret = self.__return_queue.get()
-            print 'Blocks', ret
-            task_id = ret[0]
+            task_id, task_ret = ret
             if task_id in self.__tasks:
                 self.__tasks.remove( task_id )
                 break
             else:
-                self.__return_queue.put()
-        return ret
+                self.__return_queue.put( ret )
+        return task_ret 
 
-import os.path
-
-class sor(object):
-    real_module = os.path.splitext(os.path.basename(__file__))[0]
-    #__module__ = os.path.splitext(os.path.basename(__file__))[0]  ### look here ###
-    def sorting(self, data):
-        print("SortTask starting for: %s" % data)
-        data.sort()
-        print("SortTask done for: %s" % data)
-        return "Data Sorted: ", data
 
 #Unit Test
 if __name__ == "__main__":
     
     print "Unit test is running\n"
-    #import sys
-    #mod = __import__(__name__)
-    #import testclass 
-    #mod = sys.modules[__name__]
-    from testclass import sor
-    srt = sor()
+    
+    #class sor(object):
+    #    def sorting(self, data):
+    #        print("SortTask starting for: %s" % data)
+    #        data.sort()
+    #        print("SortTask done for: %s" % data)
+    #        return "Data Sorted: ", data
+    #mod = __import__('synergeticpool')
+    import testclass
+    srt = testclass.sor()
+    #srt = sor()
 
     #Simple Callback_func for testing
     def callback_func(data):
         print("Callback Function => sorting() returned: %s \n" % str( data ) )
 
     #A pool or some worker threads 
-    pool = SynergeticPool( { '192.168.1.65':(40000,'123456') } )
+    pool = SynergeticPool( { '192.168.1.65':(40000,'123456'), '192.168.1.68':(40000,'123456') } )
+    pool.register_mod(['testclass'])
 
     #Dispatch some tasks to the Thread Pool (i.e. put some entries at the task Queue of the ThreadPool instance)
     for ret in pool.dispatch(srt.sorting, [5, 6, 7, 1, 3, 0, 1, 1, 10]):
         print 'RET', ret
+    for ret in pool.dispatch(srt.sorting, [5, 50, 89, 33, 77, 0, 1, 1, 10]):
+        print 'RET', ret
+    
+    for ret in pool.imap(srt.sorting, [5, 6, 7, 1, 3, 0, 1, 1, 10, 5, 6, 7, 1, 3, 0, 1, 1, 9, 5, 6, 7, 1, 3, 0, 1, 1, 8], 3):
+        print 'RET imap', ret
+        
+    print 'MAP ret ', pool.map(srt.sorting, [5, 6, 7, 1, 3, 0, 1, 1, 10, 5, 6, 7, 1, 3, 0, 1, 1, 9, 5, 6, 7, 1, 3, 0, 1, 1, 8], 3)
     #pool.dispatch(sorting, [5], callback_func)
     #pool.dispatch(sorting, [0, 0, 1, 10], callback_func)
     #print("\npool.dispatch( sorting(), [ list ] ) returns: %s %s\n" % pool.dispatch(sorting, [5, 6, 7, 1, 3]) )   

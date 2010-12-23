@@ -8,4 +8,4 @@ class sor(object):
         print("SortTask starting for: %s" % data)
         data.sort()
         print("SortTask done for: %s" % data)
-        return "Data Sorted: ", data
+        return data

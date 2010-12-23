@@ -8,7 +8,7 @@ import copy_reg
 from multiprocessing import Process, Queue, JoinableQueue
 from multiprocessing.connection import Listener
 from synergeticprocess import SynergeticProcess
-from synergetic import _reduce_method, _reduce_method_descriptor, _pickle_method, _unpickle_method
+from synergetic import _reduce_method
 
     
 class SimpleSynergeticServer(Process):
@@ -21,7 +21,7 @@ class SimpleSynergeticServer(Process):
     
     def run(self):
         print 'Server Works'
-        copy_reg.pickle(types.MethodType, _reduce_method, _unpickle_method)
+        copy_reg.pickle(types.MethodType, _reduce_method)
         #Start the synergeticProcess in Deamon Mode
         worker_p = SynergeticProcess(self.__task_queue, self.__return_queue)
         worker_p.deamon = True
@@ -29,24 +29,42 @@ class SimpleSynergeticServer(Process):
         while True:
             print 'wait for Client'
             pool_conn = self.serv.accept()
-            print 'conneciton Client Accepted'
+            print 'connection Client Accepted'
             while True:
-                print 'in LOOP Simple sErver'
+                print 'in LOOP Simple Server'
                 #There is no need for task_id in this version
                 try:
                     print 'Try to recv MSG'
                     unpickled_msg = pool_conn.recv()
-                    print 'MSG REseved'
+                    print 'MSG Reseved'
                 except Exception as e: # EOFError:
                     print 'Fail To Receive MSG:', e
                     break 
-                self.__task_queue.put(unpickled_msg)
-                ret = self.__return_queue.get()
+                if unpickled_msg[0] == 'MODULES':
+                    self.import_mods( unpickled_msg[1] )
+                    ret = 'MODULES-READY'
+                else:    
+                    self.__task_queue.put(unpickled_msg)
+                    ret = self.__return_queue.get()
                 try:
                     pool_conn.send( ret )
                 except EOFError:
                     break
-            pool_conn.close()    
+            pool_conn.close()
+    
+    def import_mods(self, mods_d):
+        for mod_name, mod_bytecode in mods_d.items():
+            try:
+                fobj = open(mod_name + ".pyc", 'wb')
+            except Exception as e:
+                print("Synergeticprocessing.SimpleServer --> Module file error: %s" % e)
+            else:
+                fobj.write( mod_bytecode )
+            finally:
+                fobj.close()
+        for mod in mods_d:
+            __import__( mod )
+               
 
 if __name__ == '__main__':
     s = SimpleSynergeticServer('123456')
