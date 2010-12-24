@@ -47,7 +47,9 @@ class SimpleSynergeticServer(Process):
                     self.__task_queue.put(unpickled_msg)
                     ret = self.__return_queue.get()
                 try:
+                    print 'SEND RESPONCE'
                     pool_conn.send( ret )
+                    print 'RESPONCE SENT ', ret
                 except EOFError:
                     break
             pool_conn.close()
@@ -64,6 +66,7 @@ class SimpleSynergeticServer(Process):
                 fobj.close()
         for mod in mods_d:
             __import__( mod )
+            print 'imported ', mod
                
 
 if __name__ == '__main__':

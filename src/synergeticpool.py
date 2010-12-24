@@ -53,9 +53,11 @@ class SynergeticPool(Process):
             if conn:
                 try: 
                     conn.send(('MODULES', self.__regstr_mods))
-                    resp = conn.recv()
+                    print 'MSG SND to ', serv
                 except Exception as e:
-                    raise Exception('Module Registration Error')
+                    raise Exception('Module Registration Error: %s' % e )
+                resp = conn.recv()
+                print 'MSG REVCD'
                 if resp == 'MODULES-READY':
                     print('Modules Ready @ SynergeticServer: %s' % serv )
                 else:
