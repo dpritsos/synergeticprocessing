@@ -38,7 +38,7 @@ class SynergeticPool(Process):
         self.__start_synergetic_recver()
         
     def register_mod(self, mod_list):
-        self.__regstr_mods = dict()
+        __regstr_mods = dict()
         for mod in mod_list:
             try:
                 fobj = open(mod + ".pyc", 'rb')
@@ -48,20 +48,20 @@ class SynergeticPool(Process):
                 mod_bytecod = fobj.read()
             finally:
                 fobj.close()
-            self.__regstr_mods[ mod ] = mod_bytecod 
+            __regstr_mods[ mod ] = mod_bytecod 
         for serv, conn in self.__syn_servs.items():
             if conn:
                 try: 
-                    conn.send(('MODULES', self.__regstr_mods))
+                    conn.send(('MODULES', __regstr_mods))
                     print 'MSG SND to ', serv
                 except Exception as e:
                     raise Exception('Module Registration Error: %s' % e )
-                resp = conn.recv()
-                print 'MSG REVCD'
-                if resp == 'MODULES-READY':
-                    print('Modules Ready @ SynergeticServer: %s' % serv )
-                else:
-                    raise Exception('Module Registration Unexpected Error')
+                ret = self.__return_queue.get()
+                while ret != 'MODULES-READY':
+                    self.__return_queue.put( ret )
+                    ret = self.__return_queue.get()
+                print('Modules Ready @ SynergeticServer: %s' % serv )
+                
         
     def __start_pool(self, synergetic_servers, local_worker_num=1):
         #Initialise the Queues
@@ -152,7 +152,6 @@ class SynergeticPool(Process):
                 self.__syn_servs[ serv ] = None    
 
     def __dispatch(self, func, *args, **kwargs):
-        print 'put in queue'
         task_id = str( random.randrange(1, 100000000) )
         task = (task_id, func, args, kwargs)
         self.__task_queue.put( task )

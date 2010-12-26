@@ -48,7 +48,10 @@ class SimpleSynergeticServer(Process):
                     ret = self.__return_queue.get()
                 try:
                     print 'SEND RESPONCE'
-                    pool_conn.send( ret )
+                    try:
+                        pool_conn.send( ret )
+                    except EOFError:
+                        print 'SENT TO POOL FAILD'
                     print 'RESPONCE SENT ', ret
                 except EOFError:
                     break
@@ -65,6 +68,7 @@ class SimpleSynergeticServer(Process):
             finally:
                 fobj.close()
         for mod in mods_d:
+            print 'blocking'
             __import__( mod )
             print 'imported ', mod
                
