@@ -103,6 +103,7 @@ class SynergeticPool(Process):
             for serv_addr, conn in self.__syn_servs.items():
                 if conn:
                     Task = self.__task_queue.get()
+                    self.__task_queue.task_done()
                     try:
                         conn.send( Task )
                     except EOFError:
@@ -126,10 +127,7 @@ class SynergeticPool(Process):
     
     def __synergetic_serv_connection(self, serv, port, auth):
         try:
-            print 'Conneting'
-            print serv, port, auth
-            conn = Client((str(serv), port), authkey=str(auth))
-            print 'Conneted'
+            conn = Client((serv, port), authkey=str(auth))
         except:
             conn = None
         return conn
@@ -190,8 +188,16 @@ class SynergeticPool(Process):
         return ret
     
     def join_all(self, timeout=None):
-        pass
-    
+        for serv, conn in self.__syn_servs.items():
+            if conn:
+                conn.close()
+                print("Connection to Synergetic-server:%s CLOSED" % serv)
+        self.__task_queue.put( (None, None, None, None) )
+        self.__task_queue.task_done()
+        self.__task_queue.join()
+        self.__return_queue.close()
+        self.__return_queue.join_thread()
+            
     @property
     def remote_prcss_num(self):
         return len(self.__syn_pcss)
