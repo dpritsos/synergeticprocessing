@@ -17,7 +17,7 @@ import random
 class SynergeticPool(Process):
     """Synergetic Process Pool: """
     
-    def __init__(self, synergetic_servers=None):
+    def __init__(self, synergetic_servers=None, local_workers=1, syn_listener_port=41000):
         #Enable Class Method Pickling  
         copy_reg.pickle(types.MethodType, _reduce_method)
         #Enable Descriptor Method Pickling
@@ -27,15 +27,15 @@ class SynergeticPool(Process):
         #List of available Synergetic Processes 
         self.__syn_pcss = list()
         #List of incomplete tasks recored
-        self.__incomp_tsks_set_q = Queue()
+        self.__incomp_tsks_set_q = Queue() ### Not on USE for NOW
         #Start the Listener that is expecting new-coming synergetic-servers of synergetic-processes
-        self.__start_synergetic_listener()
+        self.__start_synergetic_listener( listener_port=syn_listener_port )
         #Start the Synergetic-Pool's functionality
-        self.__start_pool(synergetic_servers, local_worker_num=1)
+        self.__start_pool(synergetic_servers, local_workers_num=local_workers)
         #Start the Synergetic feeder that feeds the remote servers with Tasks  
-        self.__start_synergetic_feeder()
+        #self.__start_synergetic_feeder()
         #Start the Synergetic Receiver for getting the results of the remote processes
-        self.__start_synergetic_recver()
+        #self.__start_synergetic_recver()
         
     def register_mod(self, mod_list):
         __regstr_mods = dict()
@@ -61,28 +61,40 @@ class SynergeticPool(Process):
                     self.__return_queue.put( ret )
                     ret = self.__return_queue.get()
                 print('Modules Ready @ SynergeticServer: %s' % serv )
-                
         
-    def __start_pool(self, synergetic_servers, local_worker_num=1):
+    def __start_pool(self, synergetic_servers, local_workers_num):
         #Initialise the Queues
         if synergetic_servers:
             syn_servs_num = len(synergetic_servers)
+            self.__task_queue = JoinableQueue( syn_servs_num + local_workers_num )
+            self.__return_queue = Queue( syn_servs_num + local_workers_num )
+            #
+            self.__start_local_pool(local_workers_num)
+            #
+            self.__start_serv_pool(synergetic_servers)
+            #Start the Synergetic feeder that feeds the remote servers with Tasks  
+            self.__start_synergetic_feeder()
+            #Start the Synergetic Receiver for getting the results of the remote processes
+            self.__start_synergetic_recver()
         else:
-            syn_servs_num = 0
-        self.__task_queue = JoinableQueue( syn_servs_num + local_worker_num )
-        self.__return_queue = Queue( syn_servs_num + local_worker_num )
-        #
-        self.__start_local_pool(local_worker_num)
-        #
-        self.__start_serv_pool(synergetic_servers)
+            self.__task_queue = JoinableQueue(local_workers_num )
+            self.__return_queue = Queue(local_workers_num )
+            #
+            self.__start_local_pool(local_workers_num)
+        #self.__task_queue = JoinableQueue( syn_servs_num + local_workers_num )
+        #self.__return_queue = Queue( syn_servs_num + local_workers_num )
+        ##
+        #self.__start_local_pool(local_workers_num)
+        ##
+        #self.__start_serv_pool(synergetic_servers)
         
-    def __start_synergetic_listener(self):
-        listener = Process( target=self.__synergetic_serv_listener )
+    def __start_synergetic_listener(self, listener_port):
+        listener = Process( target=self.__synergetic_serv_listener, args=(listener_port,))
         listener.daemon = True
         listener.start()
     
-    def __synergetic_serv_listener(self):
-        serv = Listener(('', 41000), authkey='123456')
+    def __synergetic_serv_listener(self, listener_port):
+        serv = Listener(('', listener_port), authkey='123456')
         while True:
             conn = serv.accept()
             try:
