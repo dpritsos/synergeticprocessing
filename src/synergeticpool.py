@@ -27,7 +27,7 @@ class SynergeticPool(Process):
         #List of available Synergetic Processes 
         self.__syn_pcss = list()
         #List of incomplete tasks recored
-        self.__incomp_tsks_set_q = Queue() ### Not on USE for NOW
+        self.__incomp_tsks = dict() ### Not on USE for NOW
         #Start the Listener that is expecting new-coming synergetic-servers of synergetic-processes
         self.__start_synergetic_listener( listener_port=syn_listener_port )
         #Start the Synergetic-Pool's functionality
@@ -66,7 +66,7 @@ class SynergeticPool(Process):
         #Initialise the Queues
         if synergetic_servers:
             syn_servs_num = len(synergetic_servers)
-            self.__task_queue = JoinableQueue( syn_servs_num + local_workers_num )
+            self.__task_queue = JoinableQueue( )#syn_servs_num + local_workers_num )
             self.__return_queue = Queue( syn_servs_num + local_workers_num )
             #
             self.__start_local_pool(local_workers_num)
@@ -77,7 +77,7 @@ class SynergeticPool(Process):
             #Start the Synergetic Receiver for getting the results of the remote processes
             self.__start_synergetic_recver()
         else:
-            self.__task_queue = JoinableQueue(local_workers_num )
+            self.__task_queue = JoinableQueue() #local_workers_num 
             self.__return_queue = Queue(local_workers_num )
             #
             self.__start_local_pool(local_workers_num)
@@ -116,6 +116,10 @@ class SynergeticPool(Process):
                 if conn:
                     Task = self.__task_queue.get()
                     self.__task_queue.task_done()
+                    #Keep Task Until is completed
+                    #if Task[0] != 'MODULES':
+                    #    (task_id, func, args, kwargs) = Task
+                    #    self.__incomp_tsks[ serv_addr ]= { task_id : (func, args, kwargs) } 
                     try:
                         conn.send( Task )
                     except EOFError:
@@ -136,6 +140,16 @@ class SynergeticPool(Process):
                         self.__syn_servs[ serv_addr ] = None
                     else:
                         self.__return_queue.put( return_msg )
+                        if serv_addr in self.__incomp_tsks and return_msg != 'MODULES-READY':
+                            del self.__incomp_tsks[ serv_addr ][ return_msg[0] ]
+                #elif self.__incomp_tsks[ serv_addr ]:
+                #    Tasks = self.__incomp_tsks[ serv_addr ]
+                #    for task_id, (func, args, kwargs) in Tasks.items():
+                #        print "Incomplete task putting back to Queue"
+                #        self.__task_queue.put( (task_id, func, args, kwargs) )
+                #        del self._incomp_tsks[ serv_addr ][ task_id ]
+                #        self.__task_queue.task_done()
+                        
     
     def __synergetic_serv_connection(self, serv, port, auth):
         try:
@@ -171,12 +185,21 @@ class SynergeticPool(Process):
         task_id = self.__dispatch(func, *args, **kwargs)
         return ResaultIterator(self.__return_queue, [task_id])
     
-    def imap(self, func, iterable=None, chank=1, callback=None):
+    def imap(self, func, iterable=None, chank=0, callback=None):
         task_ids = list()
-        if chank == 1:
+        if chank == 0:
+            #self.__task_queue = JoinableQueue( len(iterable) )
+            #self.__return_queue = Queue( len(iterable) )
+            count = 0
             for itr_item in iterable:
+            #task_ids = list()
+            #resault = ResaultIterator( self.__return_queue, task_ids )
+            #resault._job(self.__dispatch, func, iterable))
+                count += 1
+                print "dispatching", count
                 task_id = self.__dispatch( func, itr_item )
                 task_ids.append( task_id )
+            #return resault
         else:
             chank_size = len(iterable) / chank
             chank_res_num = len(iterable) % chank
@@ -190,6 +213,7 @@ class SynergeticPool(Process):
                 itr_chank = iterable[ end_pntr:(end_pntr + chank_res_num) ]
                 task_id = self.__dispatch( func, itr_chank )
                 task_ids.append( task_id )
+        print "Returning"
         return ResaultIterator( self.__return_queue, task_ids )    
     
     def map(self, func, iterable=None, chank=1, callback=None):

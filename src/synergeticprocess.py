@@ -44,7 +44,7 @@ class SynergeticProcess(Process):
             #    raise Exception("synergeticprocessing.WorkerProcess error: Non-callable was given as function for execution")
             #Execute the function with its args
             func_ret = func( *args, **kwargs )
-            #It should always be an available slot in the return queue or an exeption will me raised  
-            self.__return_q.put_nowait( (task_id, func_ret) )
+            #It should always be an available slot in the return queue or an exception will me raised  
+            self.__return_q.put( (task_id, func_ret) ) #_nowait
             self.__tasks_q.task_done()
 
